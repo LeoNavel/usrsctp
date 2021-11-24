@@ -103,7 +103,7 @@ struct in_conninfo {
 
 struct	icmp6_filter;
 
-struct inpcb {
+struct user_inpcb {
 	LIST_ENTRY(inpcb) inp_hash;	/* hash list */
 	LIST_ENTRY(inpcb) inp_list;	/* list for all PCBs of this proto */
 	void	*inp_ppcb;		/* pointer to per-protocol pcb */

@@ -445,8 +445,8 @@ struct sctp_inpcb {
 	 * for compatibility with all the other stuff.
 	 */
 	union {
-		struct inpcb inp;
-		char align[(sizeof(struct inpcb) + SCTP_ALIGNM1) &
+		struct user_inpcb inp;
+		char align[(sizeof(struct user_inpcb) + SCTP_ALIGNM1) &
 		        ~SCTP_ALIGNM1];
 	}     ip_inp;
 #if defined(__APPLE__) && !defined(__Userspace__)

@@ -653,7 +653,7 @@ sctp_attach(struct socket *so, int proto SCTP_UNUSED, struct proc *p SCTP_UNUSED
 #endif
 {
 	struct sctp_inpcb *inp;
-	struct inpcb *ip_inp;
+	struct user_inpcb *ip_inp;
 	int error;
 #if !defined(__Userspace__)
 	uint32_t vrf_id = SCTP_DEFAULT_VRFID;
@@ -733,7 +733,7 @@ int
 sctpconn_attach(struct socket *so, int proto SCTP_UNUSED, uint32_t vrf_id)
 {
 	struct sctp_inpcb *inp;
-	struct inpcb *ip_inp;
+	struct user_inpcb *ip_inp;
 	int error;
 
 	inp = (struct sctp_inpcb *)so->so_pcb;

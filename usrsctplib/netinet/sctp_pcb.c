@@ -3253,7 +3253,7 @@ sctp_inpcb_bind_locked(struct sctp_inpcb *inp, struct sockaddr *addr,
 	struct sctppcbhead *head;
 	struct sctp_inpcb *inp_tmp;
 #if (defined(__FreeBSD__) || defined(__APPLE__)) && !defined(__Userspace__)
-	struct inpcb *ip_inp;
+	struct user_inpcb *ip_inp;
 #endif
 	int port_reuse_active = 0;
 	int bindall;
@@ -3860,7 +3860,7 @@ sctp_inpcb_free(struct sctp_inpcb *inp, int immediate, int from)
 	 */
 	struct sctp_tcb *asoc, *nasoc;
 	struct sctp_laddr *laddr, *nladdr;
-	struct inpcb *ip_pcb;
+	struct user_inpcb *ip_pcb;
 	struct socket *so;
 	int being_refed = 0;
 	struct sctp_queued_to_read *sq, *nsq;
