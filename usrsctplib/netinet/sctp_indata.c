@@ -32,11 +32,6 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if defined(__FreeBSD__) && !defined(__Userspace__)
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-#endif
-
 #include <netinet/sctp_os.h>
 #if defined(__FreeBSD__) && !defined(__Userspace__)
 #include <sys/proc.h>
@@ -514,7 +509,7 @@ sctp_queue_data_to_stream(struct sctp_tcb *stcb,
 	 * with TSN 1? If the peer is doing some sort of funky TSN/SSN
 	 * assignment this could happen... and I don't see how this would be
 	 * a violation. So for now I am undecided an will leave the sort by
-	 * SSN alone. Maybe a hybred approach is the answer
+	 * SSN alone. Maybe a hybrid approach is the answer
 	 *
 	 */
 	struct sctp_queued_to_read *at;
@@ -993,7 +988,7 @@ sctp_inject_old_unordered_data(struct sctp_tcb *stcb,
 				 * we started the pd-api on the higher TSN (since
 				 * the equals part is a TSN failure it must be that).
 				 *
-				 * We are completly hosed in that case since I have
+				 * We are completely hosed in that case since I have
 				 * no way to recover. This really will only happen
 				 * if we can get more TSN's higher before the pd-api-point.
 				 */
@@ -1311,16 +1306,18 @@ sctp_add_chk_to_control(struct sctp_queued_to_read *control,
 	 * data from the chk onto the control and free
 	 * up the chunk resources.
 	 */
-	uint32_t added=0;
-	int i_locked = 0;
+	uint32_t added = 0;
+	bool i_locked = false;
 
-	if (control->on_read_q && (hold_rlock == 0)) {
-		/*
-		 * Its being pd-api'd so we must
-		 * do some locks.
-		 */
-		SCTP_INP_READ_LOCK(stcb->sctp_ep);
-		i_locked = 1;
+	if (control->on_read_q) {
+		if (hold_rlock == 0) {
+			/* Its being pd-api'd so we must do some locks. */
+			SCTP_INP_READ_LOCK(stcb->sctp_ep);
+			i_locked = true;
+		}
+		if (stcb->sctp_ep->sctp_flags & SCTP_PCB_FLAGS_SOCKET_CANT_READ) {
+			goto out;
+		}
 	}
 	if (control->data == NULL) {
 		control->data = chk->data;
@@ -1368,6 +1365,7 @@ sctp_add_chk_to_control(struct sctp_queued_to_read *control,
 		control->end_added = 1;
 		control->last_frag_seen = 1;
 	}
+out:
 	if (i_locked) {
 		SCTP_INP_READ_UNLOCK(stcb->sctp_ep);
 	}
@@ -1946,7 +1944,7 @@ sctp_process_a_data_chunk(struct sctp_tcb *stcb, struct sctp_association *asoc,
 		 * When we have NO room in the rwnd we check to make sure
 		 * the reader is doing its job...
 		 */
-		if (stcb->sctp_socket->so_rcv.sb_cc) {
+		if (SCTP_SBAVAIL(&stcb->sctp_socket->so_rcv) > 0) {
 			/* some to read, wake-up */
 #if defined(__APPLE__) && !defined(__Userspace__)
 			struct socket *so;
@@ -3400,7 +3398,7 @@ sctp_strike_gap_ack_chunks(struct sctp_tcb *stcb, struct sctp_association *asoc,
 		 */
 		if (tp1->whoTo && tp1->whoTo->saw_newack == 0) {
 			/*
-			 * No new acks were receieved for data sent to this
+			 * No new acks were received for data sent to this
 			 * dest. Therefore, according to the SFR algo for
 			 * CMT, no data sent to this dest can be marked for
 			 * FR using this SACK.
@@ -3411,7 +3409,7 @@ sctp_strike_gap_ack_chunks(struct sctp_tcb *stcb, struct sctp_association *asoc,
 		                       tp1->whoTo->this_sack_highest_newack) &&
 		           !(accum_moved && asoc->fast_retran_loss_recovery)) {
 			/*
-			 * CMT: New acks were receieved for data sent to
+			 * CMT: New acks were received for data sent to
 			 * this dest. But no new acks were seen for data
 			 * sent after tp1. Therefore, according to the SFR
 			 * algo for CMT, tp1 cannot be marked for FR using
@@ -3790,7 +3788,7 @@ sctp_try_advance_peer_ack_point(struct sctp_tcb *stcb,
 			 * Now is this one marked for resend and its time is
 			 * now up?
 			 */
-#if !(defined(__FreeBSD__)  && !defined(__Userspace__))
+#if !(defined(__FreeBSD__) && !defined(__Userspace__))
 			if (timercmp(&now, &tp1->rec.data.timetodrop, >)) {
 #else
 			if (timevalcmp(&now, &tp1->rec.data.timetodrop, >)) {
@@ -3872,13 +3870,13 @@ sctp_fs_audit(struct sctp_association *asoc)
 
 	if ((inflight > 0) || (inbetween > 0)) {
 #ifdef INVARIANTS
-		panic("Flight size-express incorrect? \n");
+		panic("Flight size-express incorrect F: %d I: %d R: %d Ab: %d ACK: %d",
+		      inflight, inbetween, resend, above, acked);
 #else
 		SCTP_PRINTF("asoc->total_flight: %d cnt: %d\n",
 		            entry_flight, entry_cnt);
-
 		SCTP_PRINTF("Flight size-express incorrect F: %d I: %d R: %d Ab: %d ACK: %d\n",
-			    inflight, inbetween, resend, above, acked);
+		            inflight, inbetween, resend, above, acked);
 		ret = 1;
 #endif
 	}
@@ -4202,7 +4200,7 @@ sctp_express_handle_sack(struct sctp_tcb *stcb, uint32_t cumack,
 				 * is optional.
 				 */
 				net->error_count = 0;
-				if (!(net->dest_state & SCTP_ADDR_REACHABLE)) {
+				if ((net->dest_state & SCTP_ADDR_REACHABLE) == 0) {
 					/* addr came good */
 					net->dest_state |= SCTP_ADDR_REACHABLE;
 					sctp_ulp_notify(SCTP_NOTIFY_INTERFACE_UP, stcb,
@@ -4468,7 +4466,7 @@ sctp_handle_sack(struct mbuf *m, int offset_seg, int offset_dup,
 	 * old sack, if so discard. 2) If there is nothing left in the send
 	 * queue (cum-ack is equal to last acked) then you have a duplicate
 	 * too, update any rwnd change and verify no timers are running.
-	 * then return. 3) Process any new consequtive data i.e. cum-ack
+	 * then return. 3) Process any new consecutive data i.e. cum-ack
 	 * moved process these first and note that it moved. 4) Process any
 	 * sack blocks. 5) Drop any acked from the queue. 6) Check for any
 	 * revoked blocks and mark. 7) Update the cwnd. 8) Nothing left,
@@ -4605,7 +4603,7 @@ sctp_handle_sack(struct mbuf *m, int offset_seg, int offset_dup,
 	 * We init netAckSz and netAckSz2 to 0. These are used to track 2
 	 * things. The total byte count acked is tracked in netAckSz AND
 	 * netAck2 is used to track the total bytes acked that are un-
-	 * amibguious and were never retransmitted. We track these on a per
+	 * ambiguous and were never retransmitted. We track these on a per
 	 * destination address basis.
 	 */
 	TAILQ_FOREACH(net, &asoc->nets, sctp_next) {
@@ -4982,7 +4980,7 @@ sctp_handle_sack(struct mbuf *m, int offset_seg, int offset_dup,
 				 * is optional.
 				 */
 				net->error_count = 0;
-				if (!(net->dest_state & SCTP_ADDR_REACHABLE)) {
+				if ((net->dest_state & SCTP_ADDR_REACHABLE) == 0) {
 					/* addr came good */
 					net->dest_state |= SCTP_ADDR_REACHABLE;
 					sctp_ulp_notify(SCTP_NOTIFY_INTERFACE_UP, stcb,
@@ -5326,7 +5324,7 @@ sctp_kick_prsctp_reorder_queue(struct sctp_tcb *stcb,
 	TAILQ_FOREACH_SAFE(control, &strmin->inqueue, next_instrm, ncontrol) {
 		if (SCTP_MID_GE(asoc->idata_supported, mid, control->mid)) {
 			/* this is deliverable now */
-			if (((control->sinfo_flags >> 8) & SCTP_DATA_NOT_FRAG)  == SCTP_DATA_NOT_FRAG) {
+			if (((control->sinfo_flags >> 8) & SCTP_DATA_NOT_FRAG) == SCTP_DATA_NOT_FRAG) {
 				if (control->on_strm_q) {
 					if (control->on_strm_q == SCTP_ON_ORDERED) {
 						TAILQ_REMOVE(&strmin->inqueue, control, next_instrm);
@@ -5562,9 +5560,8 @@ sctp_handle_forward_tsn(struct sctp_tcb *stcb,
 	struct sctp_association *asoc;
 	uint32_t new_cum_tsn, gap;
 	unsigned int i, fwd_sz, m_size;
-	uint32_t str_seq;
 	struct sctp_stream_in *strm;
-	struct sctp_queued_to_read *control, *ncontrol, *sv;
+	struct sctp_queued_to_read *control, *ncontrol;
 
 	asoc = &stcb->asoc;
 	if ((fwd_sz = ntohs(fwd->ch.chunk_length)) < sizeof(struct sctp_forward_tsn_chunk)) {
@@ -5742,9 +5739,7 @@ sctp_handle_forward_tsn(struct sctp_tcb *stcb,
 			TAILQ_FOREACH(control, &stcb->sctp_ep->read_queue, next) {
 				if ((control->sinfo_stream == sid) &&
 				    (SCTP_MID_EQ(asoc->idata_supported, control->mid, mid))) {
-					str_seq = (sid << 16) | (0x0000ffff & mid);
 					control->pdapi_aborted = 1;
-					sv = stcb->asoc.control_pdapi;
 					control->end_added = 1;
 					if (control->on_strm_q == SCTP_ON_ORDERED) {
 						TAILQ_REMOVE(&strm->inqueue, control, next_instrm);
@@ -5767,13 +5762,11 @@ sctp_handle_forward_tsn(struct sctp_tcb *stcb,
 #endif
 					}
 					control->on_strm_q = 0;
-					stcb->asoc.control_pdapi = control;
 					sctp_ulp_notify(SCTP_NOTIFY_PARTIAL_DELVIERY_INDICATION,
 					                stcb,
 					                SCTP_PARTIAL_DELIVERY_ABORTED,
-					                (void *)&str_seq,
-							SCTP_SO_NOT_LOCKED);
-					stcb->asoc.control_pdapi = sv;
+					                (void *)control,
+					                SCTP_SO_NOT_LOCKED);
 					break;
 				} else if ((control->sinfo_stream == sid) &&
 					   SCTP_MID_GT(asoc->idata_supported, control->mid, mid)) {
