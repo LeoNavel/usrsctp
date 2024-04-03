@@ -103,9 +103,9 @@ struct in_conninfo {
 
 struct	icmp6_filter;
 
-struct inpcb {
-	LIST_ENTRY(inpcb) inp_hash;	/* hash list */
-	LIST_ENTRY(inpcb) inp_list;	/* list for all PCBs of this proto */
+struct user_inpcb {
+	LIST_ENTRY(user_inpcb) inp_hash;	/* hash list */
+	LIST_ENTRY(user_inpcb) inp_list;	/* list for all PCBs of this proto */
 	void	*inp_ppcb;		/* pointer to per-protocol pcb */
 	struct	inpcbinfo *inp_pcbinfo;	/* PCB list info */
 	struct	socket *inp_socket;	/* back pointer to socket */
@@ -163,9 +163,9 @@ struct inpcb {
 		int	inp6_cksum;
 		short	inp6_hops;
 	} inp_depend6;
-	LIST_ENTRY(inpcb) inp_portlist;
+	LIST_ENTRY(user_inpcb) inp_portlist;
 	struct	inpcbport *inp_phd;	/* head of this list */
-#define inp_zero_size offsetof(struct inpcb, inp_gencnt)
+#define inp_zero_size offsetof(struct user_inpcb, inp_gencnt)
 	struct mtx	inp_mtx;
 
 #define	in6p_faddr	inp_inc.inc6_faddr
@@ -187,6 +187,8 @@ struct inpcb {
 #define	in6p_fport	inp_fport  /* for KAME src sync over BSD*'s */
 #define	in6p_ppcb	inp_ppcb  /* for KAME src sync over BSD*'s */
 };
+
+#define    inpcb    user_inpcb
 /*
  * The range of the generation count, as used in this implementation, is 9e19.
  * We would have to create 300 billion connections per second for this number
